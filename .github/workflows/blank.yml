@@ -1,0 +1,59 @@
+name: macOS Desktop (noVNC)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  desktop:
+    runs-on: macos-latest
+    timeout-minutes: 360  # max 6 saat
+
+    steps:
+      - name: Install Homebrew packages
+        run: |
+          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+          brew install tigervnc
+          brew install novnc
+          brew install python
+          pip3 install websockify
+          curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-darwin-amd64.tgz -o cloudflared.tgz
+          tar -xvzf cloudflared.tgz
+
+      - name: Configure VNC
+        run: |
+          mkdir -p ~/.vnc
+          echo "test123" | vncpasswd -f > ~/.vnc/passwd
+          chmod 600 ~/.vnc/passwd
+          cat > ~/.vnc/xstartup <<'EOF'
+          #!/bin/sh
+          /System/Applications/Utilities/Terminal.app/Contents/MacOS/Terminal &
+          EOF
+          chmod +x ~/.vnc/xstartup
+
+      - name: Start VNC and noVNC
+        run: |
+          vncserver :1 -geometry 1920x1080 -depth 24 -localhost yes
+          websockify --web=$(brew --prefix)/share/novnc/ 6080 localhost:5901 &
+
+      - name: Start Cloudflare Tunnel
+        id: tunnel
+        run: |
+          ./cloudflared tunnel --url http://localhost:6080 --no-autoupdate > cfd.log 2>&1 &
+          for i in $(seq 1 30); do
+            URL=$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' cfd.log | tail -n1 || true)
+            if [ -n "$URL" ]; then
+              echo "url=$URL" >> $GITHUB_OUTPUT
+              break
+            fi
+            sleep 2
+          done
+
+      - name: Show Connection Info
+        run: |
+          echo "## Web macOS Desktop (noVNC)" >> $GITHUB_STEP_SUMMARY
+          echo "URL: ${{ steps.tunnel.outputs.url }}/vnc.html" >> $GITHUB_STEP_SUMMARY
+          echo "Password: test123" >> $GITHUB_STEP_SUMMARY
+          echo "Not: Bu oturum workflow bitene kadar (max 6 saat) açık kalır." >> $GITHUB_STEP_SUMMARY
+
+      - name: Keep session alive
+        run: sleep 21600
