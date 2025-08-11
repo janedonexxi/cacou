@@ -9,7 +9,7 @@ jobs:
     timeout-minutes: 360  # max 6 saat
 
     steps:
-      - name: Install Homebrew packages
+      - name: Install Homebrew packages and dependencies
         run: |
           /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
           brew install tigervnc
@@ -26,7 +26,8 @@ jobs:
           chmod 600 ~/.vnc/passwd
           cat > ~/.vnc/xstartup <<'EOF'
           #!/bin/sh
-          /System/Applications/Utilities/Terminal.app/Contents/MacOS/Terminal &
+          # macOS GUI session start, based on YouTube guide steps
+          open /System/Applications/Utilities/Terminal.app
           EOF
           chmod +x ~/.vnc/xstartup
 
