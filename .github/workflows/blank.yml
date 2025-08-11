@@ -9,40 +9,49 @@ jobs:
     timeout-minutes: 360  # max 6 saat
 
     steps:
-      - name: Install Homebrew & packages
+      - name: Install Homebrew & packages (no GUI deps)
+        shell: bash
         run: |
           /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
           eval "$($(which brew || echo /opt/homebrew/bin/brew) shellenv)"
-          brew install tiger-vnc python xterm
-          pip3 install --upgrade pip
-          pip3 install websockify
-          git clone https://github.com/novnc/noVNC.git ~/noVNC
+          brew install tiger-vnc xterm git
+          # PEP 668 (externally-managed) sebebiyle websockify'i venv'e kuracağız
+          python3 -m venv "$HOME/.venv"
+          source "$HOME/.venv/bin/activate"
+          pip install --upgrade pip
+          pip install websockify
+          # noVNC brew'de yok; repo'dan klonla
+          git clone https://github.com/novnc/noVNC.git "$HOME/noVNC"
+          # Cloudflared (Apple Silicon)
           curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-darwin-arm64.tgz -o cloudflared.tgz
           tar -xzf cloudflared.tgz
           chmod +x cloudflared
 
       - name: Configure VNC
+        shell: bash
         run: |
-          mkdir -p ~/.vnc
-          echo "test123" | /opt/homebrew/bin/vncpasswd -f > ~/.vnc/passwd
-          chmod 600 ~/.vnc/passwd
-          cat > ~/.vnc/xstartup <<'EOF'
+          mkdir -p "$HOME/.vnc"
+          echo "test123" | /opt/homebrew/bin/vncpasswd -f > "$HOME/.vnc/passwd"
+          chmod 600 "$HOME/.vnc/passwd"
+          cat > "$HOME/.vnc/xstartup" <<'EOF'
           #!/bin/sh
           unset SESSION_MANAGER
           unset DBUS_SESSION_BUS_ADDRESS
-          xsetroot -solid grey
           xterm &
           EOF
-          chmod +x ~/.vnc/xstartup
+          chmod +x "$HOME/.vnc/xstartup"
 
       - name: Start VNC and noVNC
+        shell: bash
         run: |
           eval "$($(which brew || echo /opt/homebrew/bin/brew) shellenv)"
           /opt/homebrew/bin/vncserver :1 -geometry 1920x1080 -depth 24 -localhost yes
-          python3 -m websockify --web=~/noVNC 6080 localhost:5901 > novnc.log 2>&1 &
+          # venv içindeki websockify ile noVNC'yi sun
+          "$HOME/.venv/bin/python" -m websockify --web="$HOME/noVNC" 6080 localhost:5901 > novnc.log 2>&1 &
 
       - name: Start Cloudflare Tunnel
         id: tunnel
+        shell: bash
         run: |
           ./cloudflared tunnel --url http://localhost:6080 --no-autoupdate > cfd.log 2>&1 &
           for i in $(seq 1 30); do
@@ -56,6 +65,7 @@ jobs:
           [ -n "$URL" ] || { echo "Cloudflared URL bulunamadı"; tail -n +1 cfd.log; exit 1; }
 
       - name: Show Connection Info
+        shell: bash
         run: |
           echo "## Web macOS Desktop (noVNC)" >> $GITHUB_STEP_SUMMARY
           echo "URL: ${{ steps.tunnel.outputs.url }}/vnc.html" >> $GITHUB_STEP_SUMMARY
@@ -63,4 +73,5 @@ jobs:
           echo "Not: Bu oturum workflow bitene kadar (max 6 saat) açık kalır." >> $GITHUB_STEP_SUMMARY
 
       - name: Keep session alive
+        shell: bash
         run: sleep 21600
