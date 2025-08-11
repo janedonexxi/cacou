@@ -1,4 +1,4 @@
-name: macOS Desktop
+name: macOS Desktop (noVNC)
 
 on:
   workflow_dispatch:
@@ -13,9 +13,10 @@ jobs:
         run: |
           /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
           eval "$($(which brew || echo /opt/homebrew/bin/brew) shellenv)"
-          brew install tiger-vnc novnc python xterm
+          brew install tiger-vnc python xterm
           pip3 install --upgrade pip
           pip3 install websockify
+          git clone https://github.com/novnc/noVNC.git ~/noVNC
           curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-darwin-arm64.tgz -o cloudflared.tgz
           tar -xzf cloudflared.tgz
           chmod +x cloudflared
@@ -38,7 +39,7 @@ jobs:
         run: |
           eval "$($(which brew || echo /opt/homebrew/bin/brew) shellenv)"
           /opt/homebrew/bin/vncserver :1 -geometry 1920x1080 -depth 24 -localhost yes
-          python3 -m websockify --web=$(/opt/homebrew/bin/brew --prefix)/opt/novnc/share/novnc/ 6080 localhost:5901 > novnc.log 2>&1 &
+          python3 -m websockify --web=~/noVNC 6080 localhost:5901 > novnc.log 2>&1 &
 
       - name: Start Cloudflare Tunnel
         id: tunnel
