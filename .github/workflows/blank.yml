@@ -15,7 +15,7 @@ jobs:
           /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
           eval "$($(which brew || echo /opt/homebrew/bin/brew) shellenv)"
           brew install tiger-vnc xterm git
-          # PEP 668 (externally-managed) sebebiyle websockify'i venv'e kuracağız
+          # PEP 668 nedeniyle websockify'i venv'e kur
           python3 -m venv "$HOME/.venv"
           source "$HOME/.venv/bin/activate"
           pip install --upgrade pip
@@ -27,12 +27,10 @@ jobs:
           tar -xzf cloudflared.tgz
           chmod +x cloudflared
 
-      - name: Configure VNC
+      - name: Configure VNC (xstartup)
         shell: bash
         run: |
           mkdir -p "$HOME/.vnc"
-          echo "test123" | /opt/homebrew/bin/vncpasswd -f > "$HOME/.vnc/passwd"
-          chmod 600 "$HOME/.vnc/passwd"
           cat > "$HOME/.vnc/xstartup" <<'EOF'
           #!/bin/sh
           unset SESSION_MANAGER
@@ -45,7 +43,8 @@ jobs:
         shell: bash
         run: |
           eval "$($(which brew || echo /opt/homebrew/bin/brew) shellenv)"
-          /opt/homebrew/bin/vncserver :1 -geometry 1920x1080 -depth 24 -localhost yes
+          # Parolasız test için SecurityTypes=None; Cloudflare URL'ü gizli tut
+          "$(brew --prefix tiger-vnc)"/bin/vncserver :1 -geometry 1920x1080 -depth 24 -localhost yes -SecurityTypes None
           # venv içindeki websockify ile noVNC'yi sun
           "$HOME/.venv/bin/python" -m websockify --web="$HOME/noVNC" 6080 localhost:5901 > novnc.log 2>&1 &
 
@@ -69,7 +68,7 @@ jobs:
         run: |
           echo "## Web macOS Desktop (noVNC)" >> $GITHUB_STEP_SUMMARY
           echo "URL: ${{ steps.tunnel.outputs.url }}/vnc.html" >> $GITHUB_STEP_SUMMARY
-          echo "Password: test123" >> $GITHUB_STEP_SUMMARY
+          echo "Auth: **Parolasız (SecurityTypes=None)** — sadece test için kullanın" >> $GITHUB_STEP_SUMMARY
           echo "Not: Bu oturum workflow bitene kadar (max 6 saat) açık kalır." >> $GITHUB_STEP_SUMMARY
 
       - name: Keep session alive
