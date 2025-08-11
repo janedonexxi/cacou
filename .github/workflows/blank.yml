@@ -1,4 +1,4 @@
-name: macOS Desktop (noVNC)
+name: macOS Desktop
 
 on:
   workflow_dispatch:
@@ -9,32 +9,36 @@ jobs:
     timeout-minutes: 360  # max 6 saat
 
     steps:
-      - name: Install Homebrew packages and dependencies
+      - name: Install Homebrew & packages
         run: |
           /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-          brew install tigervnc
-          brew install novnc
-          brew install python
+          eval "$($(which brew || echo /opt/homebrew/bin/brew) shellenv)"
+          brew install tiger-vnc novnc python xterm
+          pip3 install --upgrade pip
           pip3 install websockify
-          curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-darwin-amd64.tgz -o cloudflared.tgz
-          tar -xvzf cloudflared.tgz
+          curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-darwin-arm64.tgz -o cloudflared.tgz
+          tar -xzf cloudflared.tgz
+          chmod +x cloudflared
 
       - name: Configure VNC
         run: |
           mkdir -p ~/.vnc
-          echo "test123" | vncpasswd -f > ~/.vnc/passwd
+          echo "test123" | /opt/homebrew/bin/vncpasswd -f > ~/.vnc/passwd
           chmod 600 ~/.vnc/passwd
           cat > ~/.vnc/xstartup <<'EOF'
           #!/bin/sh
-          # macOS GUI session start, based on YouTube guide steps
-          open /System/Applications/Utilities/Terminal.app
+          unset SESSION_MANAGER
+          unset DBUS_SESSION_BUS_ADDRESS
+          xsetroot -solid grey
+          xterm &
           EOF
           chmod +x ~/.vnc/xstartup
 
       - name: Start VNC and noVNC
         run: |
-          vncserver :1 -geometry 1920x1080 -depth 24 -localhost yes
-          websockify --web=$(brew --prefix)/share/novnc/ 6080 localhost:5901 &
+          eval "$($(which brew || echo /opt/homebrew/bin/brew) shellenv)"
+          /opt/homebrew/bin/vncserver :1 -geometry 1920x1080 -depth 24 -localhost yes
+          python3 -m websockify --web=$(/opt/homebrew/bin/brew --prefix)/opt/novnc/share/novnc/ 6080 localhost:5901 > novnc.log 2>&1 &
 
       - name: Start Cloudflare Tunnel
         id: tunnel
@@ -48,6 +52,7 @@ jobs:
             fi
             sleep 2
           done
+          [ -n "$URL" ] || { echo "Cloudflared URL bulunamadı"; tail -n +1 cfd.log; exit 1; }
 
       - name: Show Connection Info
         run: |
